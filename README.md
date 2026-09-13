@@ -14,7 +14,7 @@ SlideSafe creates a separate `.pptx` copy and replaces supported text objects wi
 - Convert all supported text or only selected font families.
 - Preserve text placement, rotation, line breaks, alignment, margins, solid and gradient colors, opacity, underline, outlines, bold, and italic styling where supported.
 - Handle common WordArt warp presets, vertical text, and the visual appearance of hyperlinks.
-- Replace text inside groups in place while preserving the group, sibling pictures, other shapes, and stacking order.
+- Normalize grouped coordinates like a PowerPoint ungroup/regroup operation, then replace text while preserving its position, the group, sibling pictures, other shapes, and stacking order.
 - Resolve fonts and theme styles through slides, layouts, masters, color maps, and East Asian font mappings.
 - Keep unsupported objects unchanged and list them in a scrollable review report.
 - Process presentations locally inside the macOS App Sandbox; no presentation data is uploaded.
@@ -87,7 +87,7 @@ SlideSafe 是一款原生 macOS 工具，用来降低 PowerPoint 在其他电脑
 - 转换全部支持的文字，或只处理指定字体。
 - 在支持范围内保留位置、旋转、换行、对齐、边距、纯色与渐变、透明度、下划线、描边、粗体和斜体效果。
 - 支持常见艺术字弯曲效果、竖排文字以及链接文字的视觉样式。
-- 可在组合内部原位替换文字，同时保留组合结构、同组图片、其他图形和层级顺序。
+- 采用等效于 PowerPoint“解除组合后重新组合”的坐标归一化，再替换组合中的文字，同时保持位置、组合结构、同组图片、其他图形和层级顺序。
 - 自动解析幻灯片、版式、母版、主题色与东亚字体映射。
 - 不支持的对象会保持原状，并在可滚动的结果页面中列出。
 - 所有处理均在本机和 macOS App Sandbox 内完成，不会上传演示文稿。

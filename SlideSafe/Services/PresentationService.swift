@@ -94,6 +94,15 @@ final class PresentationService {
                 }
             })
 
+            // Emulate PowerPoint's ungroup/regroup normalization before
+            // rendering. This keeps every grouped object at the same visual
+            // position while giving converted pictures stable slide-relative
+            // child coordinates and the correct effective text-box size.
+            if let root = parsed.document.rootElement(),
+               let shapeTree = root.firstDescendant(named: "spTree") {
+                normalizeGroupCoordinates(in: shapeTree)
+            }
+
             for parsedShape in parsed.shapes {
                 let model = parsedShape.model
                 if let reason = model.skipReason {
@@ -105,7 +114,8 @@ final class PresentationService {
                     continue
                 }
 
-                guard let geometry = model.geometry, let textBody = model.textBody else { continue }
+                guard let geometry = parseGeometry(from: parsedShape.element) ?? model.geometry,
+                      let textBody = model.textBody else { continue }
                 if mode == .selectedFonts {
                     let fonts = textBody.fontNames
                     guard !fonts.isDisjoint(with: selectedFonts) else { continue }
@@ -713,6 +723,101 @@ private extension PresentationService {
             flipHorizontal: boolean(transform.attributeValue("flipH")) ?? false,
             flipVertical: boolean(transform.attributeValue("flipV")) ?? false
         )
+    }
+
+    func normalizeGroupCoordinates(in container: XMLElement) {
+        for group in container.childElements where group.pptxLocalName == "grpSp" {
+            normalizeGroupCoordinates(group)
+            normalizeGroupCoordinates(in: group)
+        }
+    }
+
+    func normalizeGroupCoordinates(_ group: XMLElement) {
+        guard let transform = group.directChild(named: "grpSpPr")?.directChild(named: "xfrm"),
+              let offset = transform.directChild(named: "off"),
+              let extent = transform.directChild(named: "ext"),
+              let childOffset = transform.directChild(named: "chOff"),
+              let childExtent = transform.directChild(named: "chExt"),
+              let groupX = offset.attributeValue("x").flatMap(Int64.init),
+              let groupY = offset.attributeValue("y").flatMap(Int64.init),
+              let groupWidth = extent.attributeValue("cx").flatMap(Int64.init),
+              let groupHeight = extent.attributeValue("cy").flatMap(Int64.init),
+              let childX = childOffset.attributeValue("x").flatMap(Int64.init),
+              let childY = childOffset.attributeValue("y").flatMap(Int64.init),
+              let childWidth = childExtent.attributeValue("cx").flatMap(Int64.init),
+              let childHeight = childExtent.attributeValue("cy").flatMap(Int64.init),
+              groupWidth > 0, groupHeight > 0, childWidth > 0, childHeight > 0 else {
+            return
+        }
+
+        guard groupX != childX || groupY != childY
+                || groupWidth != childWidth || groupHeight != childHeight else {
+            return
+        }
+
+        let graphicalChildren = group.childElements.filter {
+            !["nvGrpSpPr", "grpSpPr"].contains($0.pptxLocalName)
+        }
+        let childTransforms = graphicalChildren.compactMap(groupChildTransform)
+        guard childTransforms.count == graphicalChildren.count else { return }
+
+        let childGeometry = childTransforms.compactMap { childTransform -> (
+            offset: XMLElement,
+            extent: XMLElement,
+            x: Int64,
+            y: Int64,
+            width: Int64,
+            height: Int64
+        )? in
+            guard let itemOffset = childTransform.directChild(named: "off"),
+                  let itemExtent = childTransform.directChild(named: "ext"),
+                  let itemX = itemOffset.attributeValue("x").flatMap(Int64.init),
+                  let itemY = itemOffset.attributeValue("y").flatMap(Int64.init),
+                  let itemWidth = itemExtent.attributeValue("cx").flatMap(Int64.init),
+                  let itemHeight = itemExtent.attributeValue("cy").flatMap(Int64.init) else {
+                return nil
+            }
+            return (itemOffset, itemExtent, itemX, itemY, itemWidth, itemHeight)
+        }
+        guard childGeometry.count == childTransforms.count else { return }
+
+        let scaleX = Double(groupWidth) / Double(childWidth)
+        let scaleY = Double(groupHeight) / Double(childHeight)
+
+        for item in childGeometry {
+            item.offset.setAttribute(
+                "x",
+                value: String(groupX + scaled(item.x - childX, by: scaleX))
+            )
+            item.offset.setAttribute(
+                "y",
+                value: String(groupY + scaled(item.y - childY, by: scaleY))
+            )
+            item.extent.setAttribute("cx", value: String(scaled(item.width, by: scaleX)))
+            item.extent.setAttribute("cy", value: String(scaled(item.height, by: scaleY)))
+        }
+
+        childOffset.setAttribute("x", value: String(groupX))
+        childOffset.setAttribute("y", value: String(groupY))
+        childExtent.setAttribute("cx", value: String(groupWidth))
+        childExtent.setAttribute("cy", value: String(groupHeight))
+    }
+
+    func groupChildTransform(_ child: XMLElement) -> XMLElement? {
+        switch child.pptxLocalName {
+        case "sp", "pic", "cxnSp":
+            return child.directChild(named: "spPr")?.directChild(named: "xfrm")
+        case "grpSp":
+            return child.directChild(named: "grpSpPr")?.directChild(named: "xfrm")
+        case "graphicFrame":
+            return child.directChild(named: "xfrm")
+        default:
+            return nil
+        }
+    }
+
+    func scaled(_ value: Int64, by scale: Double) -> Int64 {
+        Int64((Double(value) * scale).rounded())
     }
 
     func hasUnsupportedShapeStyle(_ shape: XMLElement) -> Bool {
