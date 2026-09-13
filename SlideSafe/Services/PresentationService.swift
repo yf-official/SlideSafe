@@ -316,24 +316,20 @@ private extension PresentationService {
                 }
             case "grpSp":
                 for groupShape in child.descendants(named: "sp") where groupShape.directChild(named: "txBody") != nil {
-                    let name = shapeNameAndID(groupShape).name
-                    let body = parseTextBody(
-                        groupShape.directChild(named: "txBody")!,
-                        placeholderType: nil,
-                        theme: slideTheme,
-                        inheritedSeeds: [:]
-                    )
-                    guard body?.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-                        continue
-                    }
-                    unsupported.append(TextShapeModel(
+                    // A grouped child keeps its transform in the group's local
+                    // coordinate space. Replacing that child in place preserves
+                    // the parent group's scale, rotation, position, z-order, and
+                    // non-text siblings (including pictures).
+                    let model = parseTextShape(
+                        groupShape,
                         slideIndex: index,
-                        shapeID: shapeNameAndID(groupShape).id,
-                        shapeName: name,
-                        geometry: nil,
-                        textBody: body,
-                        skipReason: .unsupportedGroup
-                    ))
+                        placeholderDefaults: placeholderDefaults,
+                        theme: slideTheme,
+                        advancedAnimationIDs: advancedAnimationIDs
+                    )
+                    if model.skipReason != .emptyText {
+                        parsedShapes.append(ParsedShape(element: groupShape, model: model))
+                    }
                 }
             case "graphicFrame":
                 let text = child.descendants(named: "t").compactMap(\.stringValue).joined()
