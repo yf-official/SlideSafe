@@ -1,0 +1,210 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "app.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "SlideSafe" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "SlideSafe" } }
+      }
+    },
+    "analysis.choose_another" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Another" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择其他文件" } } } },
+    "analysis.complete" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Analysis complete" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分析完成" } } } },
+    "analysis.fonts" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Fonts" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "字体" } } } },
+    "analysis.needs_review" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Needs Review" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要检查" } } } },
+    "analysis.overview" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Overview" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "概览" } } } },
+    "analysis.slides" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Slides" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "幻灯片" } } } },
+    "analysis.slide" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Slide" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第" } } } },
+    "analysis.supported_suffix" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "supported text objects" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个受支持的文字对象" } } } },
+    "analysis.text_objects" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Text Objects" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文字对象" } } } },
+    "analysis.view_review" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "View items that need review" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看需要检查的项目" } } } },
+    "completion.converted" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Converted to Images" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已转为图片" } } } },
+    "completion.items" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "items" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "项" } } } },
+    "completion.open" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开" } } } },
+    "completion.process_another" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Process Another" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "处理其他文件" } } } },
+    "completion.show_finder" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Show in Finder" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在 Finder 中显示" } } } },
+    "completion.skipped" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Skipped" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已跳过" } } } },
+    "completion.slide" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Slide" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第" } } } },
+    "completion.slides" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Slides" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "幻灯片" } } } },
+    "completion.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Safe copy created" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安全副本已创建" } } } },
+    "completion.view_details" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "View skipped items" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看跳过的项目" } } } },
+    "completion.warnings" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Warnings" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "警告" } } } },
+    "completion.warning_details" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Warning summary" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "警告摘要" } } } },
+    "conversion.create_safe_copy" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Create Safe Copy" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建安全副本" } } } },
+    "conversion.editability_notice" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Text replaced with images will no longer be editable as normal PowerPoint text." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "转为图片后的文字将无法再作为普通 PowerPoint 文字进行编辑。" } } } },
+    "conversion.mode" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conversion Mode" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "转换模式" } } } },
+    "conversion.mode.allText" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "All Text" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部文字" } } } },
+    "conversion.mode.selectedFonts" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected Fonts" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "指定字体" } } } },
+    "conversion.options" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Conversion" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "转换设置" } } } },
+    "error.details.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Technical Details" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "技术信息" } } } },
+    "error.processing.message" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Some elements could not be processed. The original presentation was not changed." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分元素无法完成处理，原始演示文稿未被修改。" } } } },
+    "error.processing.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to Complete" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法完成处理" } } } },
+    "error.view_details" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "View Details" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看详情" } } } },
+    "export.panel.prompt" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Create Safe Copy" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建安全副本" } } } },
+    "export.panel.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Save the SlideSafe Copy" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存 SlideSafe 安全副本" } } } },
+    "font.unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unavailable on this Mac" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前 Mac 未安装" } } } },
+    "issue.advancedAnimation" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Advanced text animation" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "高级文字动画" } } } },
+    "issue.emptyText" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Empty text" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "空文字对象" } } } },
+    "issue.hyperlink" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Text hyperlink" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文字包含超链接" } } } },
+    "issue.missingFont" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Font unavailable on this Mac" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前 Mac 未安装该字体" } } } },
+    "issue.unresolvedStyle" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Font or color style cannot be resolved reliably" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法可靠确定原始字体或颜色，已保留原文字" } } } },
+    "issue.missingGeometry" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Position or size unavailable" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法确定位置或尺寸" } } } },
+    "issue.renderingFailed" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Image rendering failed" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文字图片生成失败" } } } },
+    "issue.unselectedMixedFonts" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Mixed selected and unselected fonts" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同一文本框混合了已选与未选字体" } } } },
+    "issue.unsupportedGroup" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Text inside a group" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "组合中的文字" } } } },
+    "issue.unsupportedObject" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unsupported object type" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂不支持的对象类型" } } } },
+    "issue.unsupportedShapeStyle" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Shape fill, line, or effect" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文本形状包含填充、边框或特效" } } } },
+    "issue.unsupportedVerticalText" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Vertical text" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "竖排文字" } } } },
+    "issue.unsupportedWordArt" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "WordArt or warped text" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "艺术字或变形文字" } } } },
+    "progress.analyzing" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Analyzing presentation…" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在分析演示文稿…" } } } },
+    "progress.converting" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Replacing text with images…" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在将文字转为图片…" } } } },
+    "progress.extracting" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing a protected working copy…" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备受保护的工作副本…" } } } },
+    "progress.packaging" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Packaging the safe copy…" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在打包安全副本…" } } } },
+    "progress.preparing" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing…" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备…" } } } },
+    "progress.slide %lld %lld" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Processing slide %1$lld of %2$lld" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在处理第 %1$lld / %2$lld 页" } } } },
+    "appearance.dark" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "深色" } }
+      }
+    },
+    "appearance.light" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浅色" } }
+      }
+    },
+    "appearance.system" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Follow System" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } }
+      }
+    },
+    "error.dismiss" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+      }
+    },
+    "error.unsupported.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a PowerPoint file in .pptx format." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择 .pptx 格式的 PowerPoint 文件。" } }
+      }
+    },
+    "error.unsupported.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unsupported File" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不支持的文件" } }
+      }
+    },
+    "import.choose_file" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose File" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择文件" } }
+      }
+    },
+    "import.continue" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Analyze" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始分析" } }
+      }
+    },
+    "import.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Create a presentation copy whose text is less likely to shift on another computer." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建一个更不容易因设备和字体变化而跑版的演示副本。" } }
+      }
+    },
+    "import.drop.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "or choose a .pptx file" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "或选择一个 .pptx 文件" } }
+      }
+    },
+    "import.drop.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drop a PowerPoint here" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将 PowerPoint 拖到这里" } }
+      }
+    },
+    "import.heading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Prepare a safer presentation copy" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建更安心的演示副本" } }
+      }
+    },
+    "import.phase_two_note" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Presentation analysis arrives in the next development phase." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "演示文稿分析将在下一开发阶段实现。" } }
+      }
+    },
+    "import.replace" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Another File" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择其他文件" } }
+      }
+    },
+    "import.selected.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected PowerPoint" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择 PowerPoint" } }
+      }
+    },
+    "import.supported_format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : ".pptx files only" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅支持 .pptx 文件" } }
+      }
+    },
+    "language.chinese" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "中文" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "中文" } }
+      }
+    },
+    "language.english" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "English" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "English" } }
+      }
+    },
+    "privacy.local" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Your presentation stays on this Mac." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "您的演示文稿始终保留在这台 Mac 上。" } }
+      }
+    },
+    "settings.appearance" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Appearance" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "外观" } }
+      }
+    },
+    "settings.button" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置" } }
+      }
+    },
+    "settings.general" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "General" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "通用" } }
+      }
+    },
+    "settings.language" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Language" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语言" } }
+      }
+    },
+    "settings.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -1,0 +1,23 @@
+# Xcode and local build products
+.build/
+DerivedData/
+dist/
+*.xcarchive
+
+# Local development and generated presentation artifacts
+.*-build/
+TestDecks/
+Tests/
+Figure/
+~$*.pptx
+
+# User-specific Xcode state
+xcuserdata/
+*.xcuserstate
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Local duplicate artwork
+/SlideSafe.png
