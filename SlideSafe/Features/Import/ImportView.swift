@@ -15,27 +15,30 @@ struct ImportView: View {
             } else if let analysis = viewModel.analysis {
                 AnalysisView(analysis: analysis, viewModel: viewModel)
             } else {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 40)
+                GeometryReader { proxy in
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 40)
 
-                    VStack(spacing: 28) {
-                        introduction
+                        VStack(spacing: 28) {
+                            introduction
 
-                        if let selectedFile = viewModel.selectedFile {
-                            selectedFileCard(selectedFile)
-                        } else {
-                            dropZone
+                            if let selectedFile = viewModel.selectedFile {
+                                selectedFileCard(selectedFile)
+                            } else {
+                                dropZone
+                            }
                         }
+                        .frame(maxWidth: min(960, max(1, proxy.size.width - 80)))
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 40)
+
+                        Spacer(minLength: 40)
+
+                        Text("privacy.local")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.bottom, 20)
                     }
-                    .frame(maxWidth: 620)
-                    .padding(.horizontal, 40)
-
-                    Spacer(minLength: 40)
-
-                    Text("privacy.local")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 20)
                 }
             }
         }

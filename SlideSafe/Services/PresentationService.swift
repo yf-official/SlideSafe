@@ -94,16 +94,128 @@ final class PresentationService {
                 }
             })
 
-            // Emulate PowerPoint's ungroup/regroup normalization before
-            // rendering. This keeps every grouped object at the same visual
-            // position while giving converted pictures stable slide-relative
-            // child coordinates and the correct effective text-box size.
-            if let root = parsed.document.rootElement(),
-               let shapeTree = root.firstDescendant(named: "spTree") {
-                normalizeGroupCoordinates(in: shapeTree)
-            }
+            var processedTableFrames: Set<ObjectIdentifier> = []
+            var nextOverlayShapeID = nextAvailableShapeID(in: parsed.document)
 
             for parsedShape in parsed.shapes {
+                if let tableCell = parsedShape.tableCell {
+                    let tableKey = ObjectIdentifier(tableCell.frame)
+                    guard processedTableFrames.insert(tableKey).inserted else { continue }
+                    let tableShapes = parsed.shapes.filter {
+                        guard let candidate = $0.tableCell else { return false }
+                        return candidate.frame === tableCell.frame
+                    }
+                    let tableMetadata = graphicFrameNameAndID(tableCell.frame)
+
+                    var tableMustRemainOriginal = false
+                    for tableShape in tableShapes {
+                        if let reason = tableShape.model.skipReason {
+                            skippedIssues.append(OutlineIssue(
+                                slideIndex: slideIndex,
+                                shapeName: tableShape.model.shapeName,
+                                reason: reason
+                            ))
+                            tableMustRemainOriginal = true
+                        }
+                    }
+                    if tableMustRemainOriginal { continue }
+
+                    let tableFonts = Set(tableShapes.flatMap {
+                        $0.model.textBody?.fontNames ?? []
+                    })
+                    if mode == .selectedFonts {
+                        guard !tableFonts.isDisjoint(with: selectedFonts) else { continue }
+                        guard tableFonts.isSubset(of: selectedFonts) else {
+                            skippedIssues.append(OutlineIssue(
+                                slideIndex: slideIndex,
+                                shapeName: tableMetadata.name,
+                                reason: .unselectedMixedFonts
+                            ))
+                            continue
+                        }
+                    }
+
+                    do {
+                        guard let frameGeometry = parseGraphicFrameGeometry(from: tableCell.frame) else {
+                            throw PPTXError.invalidXML(slideURL.lastPathComponent)
+                        }
+                        var layers: [TextOutlineCompositeLayer] = []
+                        for tableShape in tableShapes {
+                            guard let cell = tableShape.tableCell,
+                                  let textBody = tableShape.model.textBody else { continue }
+                            let renderedCell = try renderer.render(body: textBody, geometry: cell.geometry)
+                            layers.append(TextOutlineCompositeLayer(
+                                svgData: renderedCell.svgData,
+                                xPoints: Double(cell.geometry.x - frameGeometry.x) / ShapeGeometry.emusPerPoint,
+                                yPoints: Double(cell.geometry.y - frameGeometry.y) / ShapeGeometry.emusPerPoint,
+                                widthPoints: cell.geometry.widthPoints,
+                                heightPoints: cell.geometry.heightPoints
+                            ))
+                        }
+                        let rendered = try renderer.renderComposite(layers: layers, geometry: frameGeometry)
+                        let mediaStem = "slidesafe-s\(slideIndex)-table-\(UUID().uuidString.prefix(8))"
+                        let svgName = mediaStem + ".svg"
+                        let pngName = mediaStem + ".png"
+                        try rendered.svgData.write(
+                            to: mediaDirectory.appendingPathComponent(svgName),
+                            options: .atomic
+                        )
+                        try rendered.pngData.write(
+                            to: mediaDirectory.appendingPathComponent(pngName),
+                            options: .atomic
+                        )
+                        let relationshipIDs = try PPTXRelationship.appendImageRelationships(
+                            to: slideURL,
+                            svgTarget: "../media/\(svgName)",
+                            pngTarget: "../media/\(pngName)"
+                        )
+                        let tableModel = TextShapeModel(
+                            slideIndex: slideIndex,
+                            shapeID: tableMetadata.id,
+                            shapeName: tableMetadata.name,
+                            geometry: frameGeometry,
+                            textBody: tableShapes.first?.model.textBody,
+                            skipReason: nil
+                        )
+                        let groupShapeID = String(nextOverlayShapeID)
+                        nextOverlayShapeID += 1
+                        let overlayShapeID = String(nextOverlayShapeID)
+                        nextOverlayShapeID += 1
+                        let picture = makePictureElement(
+                            from: nil,
+                            model: tableModel,
+                            geometry: frameGeometry,
+                            svgRelationshipID: relationshipIDs.svgID,
+                            pngRelationshipID: relationshipIDs.pngID,
+                            pictureShapeID: overlayShapeID
+                        )
+                        guard let parent = tableCell.frame.parent as? XMLElement,
+                              let frameIndex = parent.children?.firstIndex(where: { $0 === tableCell.frame }) else {
+                            throw PPTXError.invalidXML(slideURL.lastPathComponent)
+                        }
+                        let group = try makeTableGroup(
+                            from: tableCell.frame,
+                            picture: picture,
+                            geometry: frameGeometry,
+                            groupShapeID: groupShapeID,
+                            groupName: tableMetadata.name + " - SlideSafe"
+                        )
+                        parent.insertChild(group, at: frameIndex + 1)
+                        tableCell.frame.detach()
+                        convertedCount += 1
+                    } catch {
+#if DEBUG
+                        fputs("SlideSafe: table rendering failed for slide \(slideIndex), table \(tableMetadata.name): \(error)\n", stderr)
+#endif
+                        skippedIssues.append(OutlineIssue(
+                            slideIndex: slideIndex,
+                            shapeName: tableMetadata.name,
+                            reason: .renderingFailed
+                        ))
+                    }
+                    continue
+                }
+
                 let model = parsedShape.model
                 if let reason = model.skipReason {
                     skippedIssues.append(OutlineIssue(
@@ -114,7 +226,9 @@ final class PresentationService {
                     continue
                 }
 
-                guard let geometry = parseGeometry(from: parsedShape.element) ?? model.geometry,
+                guard let geometry = parsedShape.tableCell?.geometry
+                        ?? parseGeometry(from: parsedShape.element)
+                        ?? model.geometry,
                       let textBody = model.textBody else { continue }
                 if mode == .selectedFonts {
                     let fonts = textBody.fontNames
@@ -142,19 +256,33 @@ final class PresentationService {
                         svgTarget: "../media/\(svgName)",
                         pngTarget: "../media/\(pngName)"
                     )
+                    let preservesOriginalShape = parsedShape.tableCell == nil
+                        && shouldPreserveOriginalShape(parsedShape.element)
+                    let overlayShapeID: String?
+                    if preservesOriginalShape {
+                        overlayShapeID = String(nextOverlayShapeID)
+                        nextOverlayShapeID += 1
+                    } else {
+                        overlayShapeID = nil
+                    }
                     let picture = makePictureElement(
-                        from: parsedShape.element,
+                        from: parsedShape.tableCell == nil ? parsedShape.element : nil,
                         model: model,
                         geometry: geometry,
                         svgRelationshipID: relationshipIDs.svgID,
-                        pngRelationshipID: relationshipIDs.pngID
+                        pngRelationshipID: relationshipIDs.pngID,
+                        pictureShapeID: overlayShapeID
                     )
                     guard let parent = parsedShape.element.parent as? XMLElement,
                           let childIndex = parent.children?.firstIndex(where: { $0 === parsedShape.element }) else {
                         throw PPTXError.invalidXML(slideURL.lastPathComponent)
                     }
-                    parsedShape.element.detach()
-                    parent.insertChild(picture, at: childIndex)
+                    parent.insertChild(picture, at: childIndex + 1)
+                    if preservesOriginalShape {
+                        clearShapeText(in: parsedShape.element)
+                    } else {
+                        parsedShape.element.detach()
+                    }
                     convertedCount += 1
                 } catch {
 #if DEBUG
@@ -193,6 +321,13 @@ private extension PresentationService {
     struct ParsedShape {
         let element: XMLElement
         let model: TextShapeModel
+        let tableCell: TableCellContext?
+    }
+
+    struct TableCellContext {
+        let cell: XMLElement
+        let frame: XMLElement
+        let geometry: ShapeGeometry
     }
 
     struct ParsedSlide {
@@ -250,7 +385,9 @@ private extension PresentationService {
         var italic: Bool?
         var spacing: Double?
         var baseline: Double?
-        var underlined: Bool?
+        var highlight: TextHighlightStyle?
+        var underlineStyle: TextDecorationStyle?
+        var strikethroughStyle: TextDecorationStyle?
         var gradientStops: [TextGradientStop]?
         var outline: TextOutlineStyle?
         var styleIsResolved = true
@@ -258,7 +395,8 @@ private extension PresentationService {
         var isEmpty: Bool {
             latinFont == nil && eastAsianFont == nil && language == nil && size == nil
                 && colorHex == nil && opacity == nil && bold == nil && italic == nil
-                && spacing == nil && baseline == nil && underlined == nil
+                && spacing == nil && baseline == nil && highlight == nil
+                && underlineStyle == nil && strikethroughStyle == nil
                 && gradientStops == nil && outline == nil
         }
 
@@ -274,7 +412,9 @@ private extension PresentationService {
                 italic: override.italic ?? italic,
                 spacing: override.spacing ?? spacing,
                 baseline: override.baseline ?? baseline,
-                underlined: override.underlined ?? underlined,
+                highlight: override.highlight ?? highlight,
+                underlineStyle: override.underlineStyle ?? underlineStyle,
+                strikethroughStyle: override.strikethroughStyle ?? strikethroughStyle,
                 gradientStops: override.gradientStops ?? gradientStops,
                 outline: override.outline ?? outline,
                 styleIsResolved: styleIsResolved && override.styleIsResolved
@@ -322,7 +462,7 @@ private extension PresentationService {
                     advancedAnimationIDs: advancedAnimationIDs
                 )
                 if model.skipReason != .emptyText {
-                    parsedShapes.append(ParsedShape(element: child, model: model))
+                    parsedShapes.append(ParsedShape(element: child, model: model, tableCell: nil))
                 }
             case "grpSp":
                 for groupShape in child.descendants(named: "sp") where groupShape.directChild(named: "txBody") != nil {
@@ -338,12 +478,21 @@ private extension PresentationService {
                         advancedAnimationIDs: advancedAnimationIDs
                     )
                     if model.skipReason != .emptyText {
-                        parsedShapes.append(ParsedShape(element: groupShape, model: model))
+                        parsedShapes.append(ParsedShape(element: groupShape, model: model, tableCell: nil))
                     }
                 }
             case "graphicFrame":
-                let text = child.descendants(named: "t").compactMap(\.stringValue).joined()
-                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if child.firstDescendant(named: "tbl") != nil,
+                   let tableCells = parseTableCells(
+                        in: child,
+                        slideIndex: index,
+                        theme: slideTheme,
+                        advancedAnimationIDs: advancedAnimationIDs
+                   ) {
+                    parsedShapes.append(contentsOf: tableCells)
+                } else {
+                    let text = child.descendants(named: "t").compactMap(\.stringValue).joined()
+                    guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
                     let metadata = graphicFrameNameAndID(child)
                     unsupported.append(TextShapeModel(
                         slideIndex: index,
@@ -360,6 +509,154 @@ private extension PresentationService {
         }
 
         return ParsedSlide(document: document, shapes: parsedShapes, additionalUnsupported: unsupported)
+    }
+
+    func parseTableCells(
+        in frame: XMLElement,
+        slideIndex: Int,
+        theme: ThemeContext,
+        advancedAnimationIDs: Set<String>
+    ) -> [ParsedShape]? {
+        guard let table = frame.firstDescendant(named: "tbl"),
+              let frameGeometry = parseGraphicFrameGeometry(from: frame),
+              frameGeometry.rotation == 0,
+              !frameGeometry.flipHorizontal,
+              !frameGeometry.flipVertical,
+              let grid = table.directChild(named: "tblGrid") else { return nil }
+
+        let columnWidths = grid.childElements
+            .filter { $0.pptxLocalName == "gridCol" }
+            .compactMap { $0.attributeValue("w").flatMap(Int64.init) }
+        let rows = table.childElements.filter { $0.pptxLocalName == "tr" }
+        let rowHeights = rows.compactMap { $0.attributeValue("h").flatMap(Int64.init) }
+        guard !columnWidths.isEmpty, rowHeights.count == rows.count,
+              columnWidths.allSatisfy({ $0 > 0 }), rowHeights.allSatisfy({ $0 > 0 }) else {
+            return nil
+        }
+
+        let columnTotal = columnWidths.reduce(0, +)
+        let rowTotal = rowHeights.reduce(0, +)
+        guard columnTotal > 0, rowTotal > 0 else { return nil }
+
+        let metadata = graphicFrameNameAndID(frame)
+        let frameID = Int(metadata.id) ?? 0
+        let tableProperties = table.directChild(named: "tblPr")
+        let hasStyledFirstRow = boolean(tableProperties?.attributeValue("firstRow")) == true
+        let tableStyleID = tableProperties?.directChild(named: "tableStyleId")?.stringValue?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+        let whiteHeaderStyleIDs: Set<String> = ["{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"]
+
+        func scaledColumnOffset(_ index: Int) -> Int64 {
+            let source = columnWidths.prefix(max(0, min(index, columnWidths.count))).reduce(0, +)
+            return Int64((Double(source) * Double(frameGeometry.width) / Double(columnTotal)).rounded())
+        }
+        func scaledRowOffset(_ index: Int) -> Int64 {
+            let source = rowHeights.prefix(max(0, min(index, rowHeights.count))).reduce(0, +)
+            return Int64((Double(source) * Double(frameGeometry.height) / Double(rowTotal)).rounded())
+        }
+
+        var result: [ParsedShape] = []
+        for (rowIndex, row) in rows.enumerated() {
+            var columnIndex = 0
+            for cell in row.childElements where cell.pptxLocalName == "tc" {
+                let span = max(1, Int(cell.attributeValue("gridSpan") ?? "1") ?? 1)
+                defer { columnIndex += span }
+                guard columnIndex < columnWidths.count else { continue }
+                if boolean(cell.attributeValue("hMerge")) == true
+                    || boolean(cell.attributeValue("vMerge")) == true {
+                    continue
+                }
+
+                let rowSpan = max(1, Int(cell.attributeValue("rowSpan") ?? "1") ?? 1)
+                let lastColumn = min(columnWidths.count, columnIndex + span)
+                let lastRow = min(rows.count, rowIndex + rowSpan)
+                let left = scaledColumnOffset(columnIndex)
+                let right = scaledColumnOffset(lastColumn)
+                let top = scaledRowOffset(rowIndex)
+                let bottom = scaledRowOffset(lastRow)
+                guard right > left, bottom > top,
+                      let textBodyElement = cell.directChild(named: "txBody") else { continue }
+
+                var seed = RunSeed(
+                    latinFont: "+mn-lt",
+                    eastAsianFont: "+mn-ea",
+                    size: 18,
+                    colorHex: theme.textColor,
+                    opacity: 1,
+                    styleIsResolved: true
+                )
+                if rowIndex == 0, hasStyledFirstRow,
+                   let tableStyleID, whiteHeaderStyleIDs.contains(tableStyleID) {
+                    seed.bold = true
+                    seed.colorHex = "FFFFFF"
+                }
+
+                guard let parsedBody = parseTextBody(
+                    textBodyElement,
+                    placeholderType: nil,
+                    theme: theme,
+                    inheritedSeeds: [0: seed]
+                ) else { continue }
+                let textBody = applyingTableCellProperties(parsedBody, from: cell)
+                guard !textBody.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    continue
+                }
+
+                let geometry = ShapeGeometry(
+                    x: frameGeometry.x + left,
+                    y: frameGeometry.y + top,
+                    width: right - left,
+                    height: bottom - top,
+                    rotation: 0,
+                    flipHorizontal: false,
+                    flipVertical: false
+                )
+                let reason: OutlineSkipReason?
+                if advancedAnimationIDs.contains(metadata.id) {
+                    reason = .advancedAnimation
+                } else if !textBody.styleIsResolved {
+                    reason = .unresolvedStyle
+                } else if textBody.fontNames.contains(where: { !FontResolver.shared.isAvailable($0) }) {
+                    reason = .missingFont
+                } else {
+                    reason = nil
+                }
+                let pictureID = 1_000_000 + frameID * 10_000 + rowIndex * 100 + columnIndex
+                let model = TextShapeModel(
+                    slideIndex: slideIndex,
+                    shapeID: String(pictureID),
+                    shapeName: "\(metadata.name) R\(rowIndex + 1)C\(columnIndex + 1)",
+                    geometry: geometry,
+                    textBody: textBody,
+                    skipReason: reason
+                )
+                result.append(ParsedShape(
+                    element: cell,
+                    model: model,
+                    tableCell: TableCellContext(cell: cell, frame: frame, geometry: geometry)
+                ))
+            }
+        }
+        return result
+    }
+
+    func applyingTableCellProperties(_ body: TextBodyModel, from cell: XMLElement) -> TextBodyModel {
+        let properties = cell.directChild(named: "tcPr")
+        return TextBodyModel(
+            paragraphs: body.paragraphs,
+            marginLeft: emuPoints(properties?.attributeValue("marL"), defaultValue: 91_440),
+            marginRight: emuPoints(properties?.attributeValue("marR"), defaultValue: 91_440),
+            marginTop: emuPoints(properties?.attributeValue("marT"), defaultValue: 45_720),
+            marginBottom: emuPoints(properties?.attributeValue("marB"), defaultValue: 45_720),
+            verticalAnchor: properties?.attributeValue("anchor").map(verticalAnchor) ?? body.verticalAnchor,
+            fontScale: body.fontScale,
+            wrapsText: true,
+            resizesShapeToFitText: false,
+            verticalMode: properties?.attributeValue("vert").flatMap { $0 == "horz" ? nil : $0 }
+                ?? body.verticalMode,
+            warpPreset: body.warpPreset
+        )
     }
 
     func parseTextShape(
@@ -394,8 +691,6 @@ private extension PresentationService {
             reason = .missingGeometry
         } else if advancedAnimationIDs.contains(metadata.id) {
             reason = .advancedAnimation
-        } else if hasUnsupportedShapeStyle(shape) {
-            reason = .unsupportedShapeStyle
         } else if textBody?.styleIsResolved == false {
             reason = .unresolvedStyle
         } else if textBody?.fontNames.contains(where: { !FontResolver.shared.isAvailable($0) }) == true {
@@ -465,7 +760,9 @@ private extension PresentationService {
                             isItalic: seed.italic ?? false,
                             kerning: seed.spacing ?? 0,
                             baseline: seed.baseline ?? 0,
-                            isUnderlined: seed.underlined ?? false,
+                            highlight: seed.highlight,
+                            underlineStyle: seed.underlineStyle ?? .none,
+                            strikethroughStyle: seed.strikethroughStyle ?? .none,
                             gradientStops: seed.gradientStops ?? [],
                             outline: seed.outline,
                             styleIsResolved: font.isExact && seed.styleIsResolved
@@ -488,7 +785,9 @@ private extension PresentationService {
                         isItalic: seed.italic ?? false,
                         kerning: seed.spacing ?? 0,
                         baseline: seed.baseline ?? 0,
-                        isUnderlined: seed.underlined ?? false,
+                        highlight: seed.highlight,
+                        underlineStyle: seed.underlineStyle ?? .none,
+                        strikethroughStyle: seed.strikethroughStyle ?? .none,
                         gradientStops: seed.gradientStops ?? [],
                         outline: seed.outline,
                         styleIsResolved: true
@@ -545,6 +844,8 @@ private extension PresentationService {
             marginBottom: emuPoints(bodyProperties?.attributeValue("bIns"), defaultValue: 45_720),
             verticalAnchor: verticalAnchor(bodyProperties?.attributeValue("anchor")),
             fontScale: max(0.01, fontScale / 100_000),
+            wrapsText: bodyProperties?.attributeValue("wrap") != "none",
+            resizesShapeToFitText: bodyProperties?.directChild(named: "spAutoFit") != nil,
             verticalMode: bodyProperties?.attributeValue("vert").flatMap { $0 == "horz" ? nil : $0 },
             warpPreset: bodyProperties?.directChild(named: "prstTxWarp")?.attributeValue("prst")
         )
@@ -580,7 +881,27 @@ private extension PresentationService {
         }()
         let hasExplicitColor = properties.directChild(named: "solidFill") != nil
             || properties.directChild(named: "gradFill") != nil
+        let highlightElement = properties.directChild(named: "highlight")
+        let highlightColor = theme.color(fromColorChoice: highlightElement?.childElements.first)
+        let highlight = highlightColor.map {
+            TextHighlightStyle(colorHex: $0.hex, opacity: $0.opacity)
+        }
         let underlineValue = properties.attributeValue("u")
+        let underlineStyle: TextDecorationStyle? = underlineValue.map {
+            switch $0 {
+            case "none": return .none
+            case "dbl", "wavyDbl": return .double
+            default: return .single
+            }
+        }
+        let strikeValue = properties.attributeValue("strike")
+        let strikethroughStyle: TextDecorationStyle? = strikeValue.map {
+            switch $0 {
+            case "noStrike", "none": return .none
+            case "dblStrike": return .double
+            default: return .single
+            }
+        }
         return RunSeed(
             latinFont: latin,
             eastAsianFont: eastAsian,
@@ -592,10 +913,13 @@ private extension PresentationService {
             italic: boolean(properties.attributeValue("i")),
             spacing: spacing,
             baseline: baseline,
-            underlined: underlineValue.map { $0 != "none" },
+            highlight: highlight,
+            underlineStyle: underlineStyle,
+            strikethroughStyle: strikethroughStyle,
             gradientStops: gradientStops?.isEmpty == false ? gradientStops : nil,
             outline: outline,
-            styleIsResolved: !hasExplicitColor || color != nil || gradientStops?.isEmpty == false
+            styleIsResolved: (!hasExplicitColor || color != nil || gradientStops?.isEmpty == false)
+                && (highlightElement == nil || highlight != nil)
         )
     }
 
@@ -725,6 +1049,115 @@ private extension PresentationService {
         )
     }
 
+    func parseGraphicFrameGeometry(from frame: XMLElement) -> ShapeGeometry? {
+        guard let transform = frame.directChild(named: "xfrm"),
+              let offset = transform.directChild(named: "off"),
+              let extent = transform.directChild(named: "ext"),
+              let x = offset.attributeValue("x").flatMap(Int64.init),
+              let y = offset.attributeValue("y").flatMap(Int64.init),
+              let width = extent.attributeValue("cx").flatMap(Int64.init),
+              let height = extent.attributeValue("cy").flatMap(Int64.init),
+              width > 0, height > 0 else { return nil }
+        return ShapeGeometry(
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            rotation: Int32(transform.attributeValue("rot") ?? "0") ?? 0,
+            flipHorizontal: boolean(transform.attributeValue("flipH")) ?? false,
+            flipVertical: boolean(transform.attributeValue("flipV")) ?? false
+        )
+    }
+
+    func clearTableCellText(in tableCell: XMLElement) {
+        guard let textBody = tableCell.directChild(named: "txBody") else { return }
+        for paragraph in textBody.childElements where paragraph.pptxLocalName == "p" {
+            paragraph.detach()
+        }
+        textBody.addChild(XMLElement(name: "a:p"))
+    }
+
+    func makeTableGroup(
+        from frame: XMLElement,
+        picture: XMLElement,
+        geometry: ShapeGeometry,
+        groupShapeID: String,
+        groupName: String
+    ) throws -> XMLElement {
+        guard let clearedFrame = frame.copy() as? XMLElement else {
+            throw PPTXError.invalidXML("table")
+        }
+        for cell in clearedFrame.descendants(named: "tc") {
+            clearTableCellText(in: cell)
+        }
+
+        let group = XMLElement(name: "p:grpSp")
+        group.setAttribute(
+            "xmlns:a",
+            value: "http://schemas.openxmlformats.org/drawingml/2006/main"
+        )
+        group.setAttribute(
+            "xmlns:r",
+            value: "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        )
+
+        let nonVisual = XMLElement(name: "p:nvGrpSpPr")
+        let coreProperties = XMLElement(name: "p:cNvPr")
+        coreProperties.setAttribute("id", value: groupShapeID)
+        coreProperties.setAttribute("name", value: groupName)
+        nonVisual.addChild(coreProperties)
+        nonVisual.addChild(XMLElement(name: "p:cNvGrpSpPr"))
+        nonVisual.addChild(XMLElement(name: "p:nvPr"))
+        group.addChild(nonVisual)
+
+        let groupProperties = XMLElement(name: "p:grpSpPr")
+        let transform = XMLElement(name: "a:xfrm")
+        if geometry.rotation != 0 { transform.setAttribute("rot", value: String(geometry.rotation)) }
+        if geometry.flipHorizontal { transform.setAttribute("flipH", value: "1") }
+        if geometry.flipVertical { transform.setAttribute("flipV", value: "1") }
+        for (name, x, y) in [
+            ("a:off", geometry.x, geometry.y),
+            ("a:ext", geometry.width, geometry.height),
+            ("a:chOff", geometry.x, geometry.y),
+            ("a:chExt", geometry.width, geometry.height)
+        ] {
+            let element = XMLElement(name: name)
+            if name == "a:off" || name == "a:chOff" {
+                element.setAttribute("x", value: String(x))
+                element.setAttribute("y", value: String(y))
+            } else {
+                element.setAttribute("cx", value: String(x))
+                element.setAttribute("cy", value: String(y))
+            }
+            transform.addChild(element)
+        }
+        groupProperties.addChild(transform)
+        group.addChild(groupProperties)
+        group.addChild(clearedFrame)
+        group.addChild(picture)
+        return group
+    }
+
+    func clearShapeText(in shape: XMLElement) {
+        shape.directChild(named: "txBody")?.detach()
+    }
+
+    func shouldPreserveOriginalShape(_ shape: XMLElement) -> Bool {
+        let textBoxValue = shape.directChild(named: "nvSpPr")?
+            .directChild(named: "cNvSpPr")?
+            .attributeValue("txBox")
+        if textBoxValue != "1" { return true }
+        return hasUnsupportedShapeStyle(shape) || shape.directChild(named: "style") != nil
+    }
+
+    func nextAvailableShapeID(in document: XMLDocument) -> Int {
+        let used = document.rootElement()?
+            .descendants(named: "cNvPr")
+            .compactMap { $0.attributeValue("id").flatMap(Int.init) }
+            ?? []
+        return (used.max() ?? 0) + 1
+    }
+
     func normalizeGroupCoordinates(in container: XMLElement) {
         for group in container.childElements where group.pptxLocalName == "grpSp" {
             normalizeGroupCoordinates(group)
@@ -847,11 +1280,12 @@ private extension PresentationService {
     }
 
     func makePictureElement(
-        from originalShape: XMLElement,
+        from originalShape: XMLElement?,
         model: TextShapeModel,
         geometry: ShapeGeometry,
         svgRelationshipID: String,
-        pngRelationshipID: String
+        pngRelationshipID: String,
+        pictureShapeID: String? = nil
     ) -> XMLElement {
         let picture = XMLElement(name: "p:pic")
         // Slide roots produced by several PPTX writers declare only the `p`
@@ -864,7 +1298,7 @@ private extension PresentationService {
 
         let nonVisual = XMLElement(name: "p:nvPicPr")
         let coreProperties = XMLElement(name: "p:cNvPr")
-        coreProperties.setAttribute("id", value: model.shapeID)
+        coreProperties.setAttribute("id", value: pictureShapeID ?? model.shapeID)
         coreProperties.setAttribute("name", value: model.shapeName + " - SlideSafe")
         nonVisual.addChild(coreProperties)
         let pictureProperties = XMLElement(name: "p:cNvPicPr")
@@ -895,7 +1329,7 @@ private extension PresentationService {
 
         let shapeProperties = XMLElement(name: "p:spPr")
         let transform: XMLElement
-        if let existing = originalShape.directChild(named: "spPr")?.directChild(named: "xfrm")?.copy() as? XMLElement {
+        if let existing = originalShape?.directChild(named: "spPr")?.directChild(named: "xfrm")?.copy() as? XMLElement {
             transform = existing
         } else {
             transform = XMLElement(name: "a:xfrm")
@@ -910,6 +1344,13 @@ private extension PresentationService {
             extent.setAttribute("cy", value: String(geometry.height))
             transform.addChild(offset)
             transform.addChild(extent)
+        }
+        if let offset = transform.directChild(named: "off"),
+           let extent = transform.directChild(named: "ext") {
+            offset.setAttribute("x", value: String(geometry.x))
+            offset.setAttribute("y", value: String(geometry.y))
+            extent.setAttribute("cx", value: String(geometry.width))
+            extent.setAttribute("cy", value: String(geometry.height))
         }
         shapeProperties.addChild(transform)
         let geometryElement = XMLElement(name: "a:prstGeom")

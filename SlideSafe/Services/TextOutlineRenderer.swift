@@ -5,6 +5,16 @@ import Foundation
 struct TextOutlineRenderResult {
     let svgData: Data
     let pngData: Data
+    let widthPoints: Double
+    let heightPoints: Double
+}
+
+struct TextOutlineCompositeLayer {
+    let svgData: Data
+    let xPoints: Double
+    let yPoints: Double
+    let widthPoints: Double
+    let heightPoints: Double
 }
 
 enum TextOutlineRendererError: Error {
@@ -20,25 +30,63 @@ final class FontResolver {
 
     private let fontManager = NSFontManager.shared
     private let availableNames: Set<String>
+    private let aliases: [String: [String]] = [
+        "simsun-extg": ["SimSun", "Songti SC"],
+        "nsimsun": ["SimSun", "Songti SC"],
+        "宋体": ["SimSun", "Songti SC"],
+        "fangsong_gb2312": ["FangSong", "Fangsong", "STFangsong"],
+        "仿宋": ["FangSong", "Fangsong", "STFangsong"],
+        "华文仿宋": ["STFangsong", "FangSong", "Fangsong"]
+    ]
 
     private init() {
+        Self.registerPowerPointFonts()
         let names = fontManager.availableFonts + fontManager.availableFontFamilies
         availableNames = Set(names.map { $0.lowercased() })
     }
 
+    private static func registerPowerPointFonts() {
+        let directory = URL(
+            fileURLWithPath: "/Applications/Microsoft PowerPoint.app/Contents/Resources/DFonts",
+            isDirectory: true
+        )
+        guard let fontURLs = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        let supportedExtensions: Set<String> = ["otf", "ttf", "ttc"]
+        for url in fontURLs where supportedExtensions.contains(url.pathExtension.lowercased()) {
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
+    }
+
     func isAvailable(_ name: String) -> Bool {
+        resolvedName(for: name) != nil
+    }
+
+    private func resolvedName(for name: String) -> String? {
         let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return false }
-        return availableNames.contains(normalized.lowercased()) || NSFont(name: normalized, size: 12) != nil
+        guard !normalized.isEmpty else { return nil }
+        if availableNames.contains(normalized.lowercased()) || NSFont(name: normalized, size: 12) != nil {
+            return normalized
+        }
+        for alias in aliases[normalized.lowercased()] ?? [] {
+            if availableNames.contains(alias.lowercased()) || NSFont(name: alias, size: 12) != nil {
+                return alias
+            }
+        }
+        return nil
     }
 
     func font(name: String, size: Double, bold: Bool, italic: Bool) throws -> NSFont {
-        guard isAvailable(name) else {
+        guard let resolvedName = resolvedName(for: name) else {
             throw TextOutlineRendererError.fontUnavailable(name)
         }
 
-        let base = NSFont(name: name, size: size)
-            ?? fontManager.font(withFamily: name, traits: [], weight: 5, size: size)
+        let base = NSFont(name: resolvedName, size: size)
+            ?? fontManager.font(withFamily: resolvedName, traits: [], weight: 5, size: size)
 
         guard var font = base else {
             throw TextOutlineRendererError.fontUnavailable(name)
@@ -60,9 +108,6 @@ final class TextOutlineRenderer {
         let height = geometry.heightPoints
         guard width > 0, height > 0 else { throw TextOutlineRendererError.invalidSize }
 
-        let attributedString = try makeAttributedString(from: body)
-        let framesetter = CTFramesetterCreateWithAttributedString(attributedString)
-
         let isVertical = body.verticalMode != nil
         let layoutWidth = isVertical ? height : width
         let layoutHeight = isVertical ? width : height
@@ -72,14 +117,47 @@ final class TextOutlineRenderer {
         let marginBottom = isVertical ? body.marginLeft : body.marginBottom
 
         let availableWidth = max(1, layoutWidth - marginLeft - marginRight)
-        let availableHeight = max(1, layoutHeight - marginTop - marginBottom)
-        let suggestedSize = CTFramesetterSuggestFrameSizeWithConstraints(
+        let measurementWidth = body.wrapsText ? availableWidth : 100_000
+        var attributedString = try makeAttributedString(from: body)
+        var framesetter = CTFramesetterCreateWithAttributedString(attributedString)
+        var suggestedSize = CTFramesetterSuggestFrameSizeWithConstraints(
             framesetter,
             CFRange(location: 0, length: attributedString.length),
             nil,
-            CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
+            CGSize(width: measurementWidth, height: .greatestFiniteMagnitude),
             nil
         )
+
+        // The replacement picture must inherit the original PowerPoint
+        // transform exactly. Auto-fit and glyph metrics affect only the layout
+        // inside this fixed viewport; they never change x/y/cx/cy.
+        let availableHeight = max(1, layoutHeight - marginTop - marginBottom)
+        if body.resizesShapeToFitText {
+            // PowerPoint's spAutoFit is allowed to expand the live text box.
+            // The replacement picture cannot expand because its transform must
+            // remain byte-for-byte identical. Fit the text *inside* that fixed
+            // viewport so no glyph is clipped at the right or bottom edge.
+            let safeWidth = max(1, availableWidth - 1)
+            let safeHeight = max(1, availableHeight - 1)
+            let widthScale = suggestedSize.width > safeWidth
+                ? safeWidth / suggestedSize.width
+                : 1
+            let heightScale = suggestedSize.height > safeHeight
+                ? safeHeight / suggestedSize.height
+                : 1
+            let autoFitScale = max(0.01, min(1, widthScale, heightScale))
+            if autoFitScale < 0.999 {
+                attributedString = try makeAttributedString(from: body, layoutScale: autoFitScale)
+                framesetter = CTFramesetterCreateWithAttributedString(attributedString)
+                suggestedSize = CTFramesetterSuggestFrameSizeWithConstraints(
+                    framesetter,
+                    CFRange(location: 0, length: attributedString.length),
+                    nil,
+                    CGSize(width: measurementWidth, height: .greatestFiniteMagnitude),
+                    nil
+                )
+            }
+        }
 
         // CoreText may decline to create even one line when the PowerPoint text
         // box is fractionally shorter than the selected font's native metrics.
@@ -110,17 +188,19 @@ final class TextOutlineRenderer {
             nil
         )
 
+        let outputWidth = width
+        let outputHeight = height
         let pointTransform: (CGPoint) -> CGPoint = { [self] point in
             let oriented: CGPoint
             switch body.verticalMode {
             case "vert", "wordArtVert", "eaVert", "mongolianVert":
-                oriented = CGPoint(x: point.y, y: height - point.x)
+                oriented = CGPoint(x: point.y, y: outputHeight - point.x)
             case "vert270", "wordArtVertRtl":
-                oriented = CGPoint(x: width - point.y, y: point.x)
+                oriented = CGPoint(x: outputWidth - point.y, y: point.x)
             default:
                 oriented = point
             }
-            return warpedPoint(oriented, preset: body.warpPreset, width: width, height: height)
+            return warpedPoint(oriented, preset: body.warpPreset, width: outputWidth, height: outputHeight)
         }
         let content = makeSVGContent(from: frame, pointTransform: pointTransform)
         guard !content.elements.isEmpty else { throw TextOutlineRendererError.noGlyphs }
@@ -130,23 +210,77 @@ final class TextOutlineRenderer {
 
         let svg = """
         <?xml version="1.0" encoding="UTF-8"?>
-        <svg xmlns="http://www.w3.org/2000/svg" width="\(format(width))" height="\(format(height))" viewBox="0 0 \(format(width)) \(format(height))" overflow="hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="\(format(outputWidth))" height="\(format(outputHeight))" viewBox="0 0 \(format(outputWidth)) \(format(outputHeight))" overflow="hidden">
           \(definitions)
-          <g transform="translate(0 \(format(height))) scale(1 -1)">
+          <g transform="translate(0 \(format(outputHeight))) scale(1 -1)">
             \(content.elements.joined(separator: "\n    "))
           </g>
         </svg>
         """
 
         guard let svgData = svg.data(using: .utf8),
-              let pngData = rasterize(svgData: svgData, width: width, height: height) else {
+              let pngData = rasterize(svgData: svgData, width: outputWidth, height: outputHeight) else {
             throw TextOutlineRendererError.rasterizationFailed
         }
 
-        return TextOutlineRenderResult(svgData: svgData, pngData: pngData)
+        return TextOutlineRenderResult(
+            svgData: svgData,
+            pngData: pngData,
+            widthPoints: outputWidth,
+            heightPoints: outputHeight
+        )
     }
 
-    private func makeAttributedString(from body: TextBodyModel) throws -> NSAttributedString {
+    func renderComposite(
+        layers: [TextOutlineCompositeLayer],
+        geometry: ShapeGeometry
+    ) throws -> TextOutlineRenderResult {
+        let width = geometry.widthPoints
+        let height = geometry.heightPoints
+        guard width > 0, height > 0, !layers.isEmpty else {
+            throw TextOutlineRendererError.invalidSize
+        }
+
+        let nestedSVGs = try layers.enumerated().map { index, layer -> String in
+            guard let source = String(data: layer.svgData, encoding: .utf8),
+                  let svgStart = source.range(of: "<svg"),
+                  let openingEnd = source.range(of: ">", range: svgStart.lowerBound..<source.endIndex),
+                  let closingStart = source.range(of: "</svg>", options: .backwards)?.lowerBound else {
+                throw TextOutlineRendererError.rasterizationFailed
+            }
+            var content = String(source[openingEnd.upperBound..<closingStart])
+            content = content.replacingOccurrences(
+                of: "slidesafe-gradient-",
+                with: "slidesafe-table-\(index)-gradient-"
+            )
+            return """
+            <svg x="\(format(layer.xPoints))" y="\(format(layer.yPoints))" width="\(format(layer.widthPoints))" height="\(format(layer.heightPoints))" viewBox="0 0 \(format(layer.widthPoints)) \(format(layer.heightPoints))" overflow="hidden">
+              \(content)
+            </svg>
+            """
+        }
+        let svg = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <svg xmlns="http://www.w3.org/2000/svg" width="\(format(width))" height="\(format(height))" viewBox="0 0 \(format(width)) \(format(height))" overflow="hidden">
+          \(nestedSVGs.joined(separator: "\n  "))
+        </svg>
+        """
+        guard let svgData = svg.data(using: .utf8),
+              let pngData = rasterize(svgData: svgData, width: width, height: height) else {
+            throw TextOutlineRendererError.rasterizationFailed
+        }
+        return TextOutlineRenderResult(
+            svgData: svgData,
+            pngData: pngData,
+            widthPoints: width,
+            heightPoints: height
+        )
+    }
+
+    private func makeAttributedString(
+        from body: TextBodyModel,
+        layoutScale: Double = 1
+    ) throws -> NSAttributedString {
         let result = NSMutableAttributedString()
 
         for (paragraphIndex, paragraph) in body.paragraphs.enumerated() {
@@ -163,16 +297,18 @@ final class TextOutlineRenderer {
                     isItalic: firstRun.isItalic,
                     kerning: firstRun.kerning,
                     baseline: firstRun.baseline,
-                    isUnderlined: firstRun.isUnderlined,
+                    highlight: firstRun.highlight,
+                    underlineStyle: firstRun.underlineStyle,
+                    strikethroughStyle: firstRun.strikethroughStyle,
                     gradientStops: firstRun.gradientStops,
                     outline: firstRun.outline,
                     styleIsResolved: firstRun.styleIsResolved
                 )
-                try append(bulletRun, scale: body.fontScale, to: result)
+                try append(bulletRun, scale: body.fontScale * layoutScale, to: result)
             }
 
             for run in paragraph.runs {
-                try append(run, scale: body.fontScale, to: result)
+                try append(run, scale: body.fontScale * layoutScale, to: result)
             }
 
             if paragraphIndex < body.paragraphs.count - 1 {
@@ -190,11 +326,14 @@ final class TextOutlineRenderer {
             case .justified:
                 paragraphStyle.alignment = .justified
             }
+            if !body.wrapsText {
+                paragraphStyle.lineBreakMode = .byClipping
+            }
             if let lineSpacingMultiple = paragraph.lineSpacingMultiple {
                 paragraphStyle.lineHeightMultiple = lineSpacingMultiple
             }
-            paragraphStyle.paragraphSpacingBefore = paragraph.spaceBefore
-            paragraphStyle.paragraphSpacing = paragraph.spaceAfter
+            paragraphStyle.paragraphSpacingBefore = paragraph.spaceBefore * layoutScale
+            paragraphStyle.paragraphSpacing = paragraph.spaceAfter * layoutScale
 
             let paragraphLength = result.length - paragraphStart
             if paragraphLength > 0 {
@@ -229,8 +368,18 @@ final class TextOutlineRenderer {
             .kern: run.kerning * scale,
             .baselineOffset: run.baseline * fontSize
         ]
-        if run.isUnderlined {
-            attributes[.slideSafeUnderline] = true
+        if let highlight = run.highlight {
+            attributes[.slideSafeHighlight] = "\(highlight.colorHex),\(highlight.opacity)"
+        }
+        switch run.underlineStyle {
+        case .none: break
+        case .single: attributes[.slideSafeUnderline] = "single"
+        case .double: attributes[.slideSafeUnderline] = "double"
+        }
+        switch run.strikethroughStyle {
+        case .none: break
+        case .single: attributes[.slideSafeStrikethrough] = "single"
+        case .double: attributes[.slideSafeStrikethrough] = "double"
         }
         let appliedTraits = NSFontManager.shared.traits(of: font)
         if run.isBold && !appliedTraits.contains(.boldFontMask) {
@@ -328,6 +477,41 @@ final class TextOutlineRenderer {
                 CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
                 CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
 
+                var ascent: CGFloat = 0
+                var descent: CGFloat = 0
+                var leading: CGFloat = 0
+                let runWidth = CTRunGetTypographicBounds(
+                    run,
+                    CFRange(location: 0, length: 0),
+                    &ascent,
+                    &descent,
+                    &leading
+                )
+                let start = positions.first ?? .zero
+                let runX = origins[lineIndex].x + start.x
+                let baselineY = origins[lineIndex].y + start.y
+
+                if let token = attributes[NSAttributedString.Key.slideSafeHighlight] as? String {
+                    let fields = token.split(separator: ",", omittingEmptySubsequences: false)
+                    if fields.count == 2, let opacity = Double(fields[1]) {
+                        let highlightRect = CGRect(
+                            x: runX,
+                            y: baselineY - descent - leading / 2,
+                            width: runWidth,
+                            height: ascent + descent + leading
+                        )
+                        let pathData = svgPathData(
+                            CGPath(rect: highlightRect, transform: nil),
+                            pointTransform: pointTransform
+                        )
+                        if !pathData.isEmpty {
+                            content.elements.append(
+                                "<path fill=\"#\(fields[0])\" fill-opacity=\"\(format(max(0, min(1, opacity))))\" d=\"\(pathData)\"/>"
+                            )
+                        }
+                    }
+                }
+
                 for glyphIndex in 0..<count {
                     guard let glyphPath = CTFontCreatePathForGlyph(font, glyphs[glyphIndex], nil) else { continue }
                     let styledPath: CGPath
@@ -347,29 +531,33 @@ final class TextOutlineRenderer {
                     content.elements.append("<path \(fillAttribute)\(opacityAttribute)\(outlineAttribute) d=\"\(pathData)\"/>")
                 }
 
-                if attributes[NSAttributedString.Key.slideSafeUnderline] as? Bool == true {
-                    var ascent: CGFloat = 0
-                    var descent: CGFloat = 0
-                    var leading: CGFloat = 0
-                    let runWidth = CTRunGetTypographicBounds(
-                        run,
-                        CFRange(location: 0, length: 0),
-                        &ascent,
-                        &descent,
-                        &leading
+                let thickness = max(0.75, CTFontGetUnderlineThickness(font))
+                func appendDecoration(at y: CGFloat) {
+                    let rect = CGRect(x: runX, y: y, width: runWidth, height: thickness)
+                    let pathData = svgPathData(
+                        CGPath(rect: rect, transform: nil),
+                        pointTransform: pointTransform
                     )
-                    let start = positions.first ?? .zero
-                    let thickness = max(0.75, CTFontGetUnderlineThickness(font))
-                    let underlineRect = CGRect(
-                        x: origins[lineIndex].x + start.x,
-                        y: origins[lineIndex].y + start.y + CTFontGetUnderlinePosition(font),
-                        width: runWidth,
-                        height: thickness
-                    )
-                    let underlinePath = CGPath(rect: underlineRect, transform: nil)
-                    let pathData = svgPathData(underlinePath, pointTransform: pointTransform)
                     if !pathData.isEmpty {
                         content.elements.append("<path \(fillAttribute)\(opacityAttribute) d=\"\(pathData)\"/>")
+                    }
+                }
+
+                if let style = attributes[NSAttributedString.Key.slideSafeUnderline] as? String {
+                    let underlineY = baselineY + CTFontGetUnderlinePosition(font)
+                    appendDecoration(at: underlineY)
+                    if style == "double" {
+                        appendDecoration(at: underlineY - max(1.5, thickness * 2.25))
+                    }
+                }
+                if let style = attributes[NSAttributedString.Key.slideSafeStrikethrough] as? String {
+                    let strikeY = baselineY + max(CTFontGetXHeight(font) * 0.5, ascent * 0.3)
+                    if style == "double" {
+                        let separation = max(1.25, thickness * 1.75)
+                        appendDecoration(at: strikeY - separation)
+                        appendDecoration(at: strikeY + separation)
+                    } else {
+                        appendDecoration(at: strikeY)
                     }
                 }
             }
@@ -507,7 +695,9 @@ final class TextOutlineRenderer {
 }
 
 private extension NSAttributedString.Key {
+    static let slideSafeHighlight = NSAttributedString.Key("SlideSafeHighlight")
     static let slideSafeUnderline = NSAttributedString.Key("SlideSafeUnderline")
+    static let slideSafeStrikethrough = NSAttributedString.Key("SlideSafeStrikethrough")
     static let slideSafeGradient = NSAttributedString.Key("SlideSafeGradient")
     static let slideSafeOutline = NSAttributedString.Key("SlideSafeOutline")
     static let slideSafeSyntheticBold = NSAttributedString.Key("SlideSafeSyntheticBold")

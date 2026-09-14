@@ -102,6 +102,17 @@ struct ShapeGeometry: Sendable {
     var heightPoints: Double { Double(height) / Self.emusPerPoint }
 }
 
+enum TextDecorationStyle: Sendable {
+    case none
+    case single
+    case double
+}
+
+struct TextHighlightStyle: Sendable {
+    let colorHex: String
+    let opacity: Double
+}
+
 struct TextRunModel: Sendable {
     let text: String
     let fontName: String
@@ -112,7 +123,9 @@ struct TextRunModel: Sendable {
     let isItalic: Bool
     let kerning: Double
     let baseline: Double
-    let isUnderlined: Bool
+    let highlight: TextHighlightStyle?
+    let underlineStyle: TextDecorationStyle
+    let strikethroughStyle: TextDecorationStyle
     let gradientStops: [TextGradientStop]
     let outline: TextOutlineStyle?
     let styleIsResolved: Bool
@@ -161,6 +174,8 @@ struct TextBodyModel: Sendable {
     let marginBottom: Double
     let verticalAnchor: VerticalAnchor
     let fontScale: Double
+    let wrapsText: Bool
+    let resizesShapeToFitText: Bool
     let verticalMode: String?
     let warpPreset: String?
 

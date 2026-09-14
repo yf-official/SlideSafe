@@ -5,18 +5,21 @@ struct AnalysisView: View {
     @ObservedObject var viewModel: PresentationViewModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                fileHeader
-                overview
-                reviewItems
-                conversionOptions
-                editabilityNotice
-                actionBar
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    fileHeader
+                    overview
+                    reviewItems
+                    conversionOptions
+                    editabilityNotice
+                    actionBar
+                }
+                .frame(maxWidth: min(1_120, max(1, proxy.size.width - 76)))
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 38)
+                .padding(.vertical, 30)
             }
-            .frame(maxWidth: 680)
-            .padding(.horizontal, 38)
-            .padding(.vertical, 30)
         }
     }
 

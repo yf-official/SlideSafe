@@ -14,10 +14,11 @@ SlideSafe creates a separate `.pptx` copy and replaces supported text objects wi
 - Convert all supported text or only selected font families.
 - Preserve text placement, rotation, line breaks, alignment, margins, solid and gradient colors, opacity, underline, outlines, bold, and italic styling where supported.
 - Handle common WordArt warp presets, vertical text, and the visual appearance of hyperlinks.
-- Normalize grouped coordinates like a PowerPoint ungroup/regroup operation, then replace text while preserving its position, the group, sibling pictures, other shapes, and stacking order.
+- Preserve grouped objects in their original local coordinate system while retaining the group, sibling pictures, other shapes, and stacking order.
+- Convert all text in a native table as one aligned image layer while preserving the table's fills, borders, merged cells, row heights, column widths, and cell alignment.
 - Resolve fonts and theme styles through slides, layouts, masters, color maps, and East Asian font mappings.
 - Keep unsupported objects unchanged and list them in a scrollable review report.
-- Process presentations locally inside the macOS App Sandbox; no presentation data is uploaded.
+- Process presentations locally; no presentation data is uploaded.
 - English and Simplified Chinese interface with light and dark appearance support.
 
 ## Requirements
@@ -47,13 +48,13 @@ The generated file is saved beside the source presentation with `- SlideSafe` ap
 - Converted text is no longer editable as text because it has been replaced by an image representation.
 - Hyperlink text keeps its visual styling, but the click action is removed after conversion.
 - Advanced per-letter, per-word, or per-paragraph animations are not converted.
-- Tables, charts, SmartArt, equations, and text with unsupported shape-level effects remain unchanged and are reported for review.
+- Charts, SmartArt, equations, rotated tables, and text with unsupported shape-level effects remain unchanged and are reported for review.
 - Unavailable fonts are not silently substituted. The affected text remains editable and is reported.
 - Visual fidelity depends on the fonts installed on the Mac performing the conversion.
 
 ## Privacy
 
-SlideSafe works locally. It does not require an account, network connection, analytics service, or cloud upload. File access is limited by the macOS App Sandbox to files selected by the user.
+SlideSafe works locally. It does not require an account, network connection, analytics service, or cloud upload. It only reads the presentation you choose and may register locally installed Microsoft PowerPoint font resources during processing.
 
 ## Build from source
 
@@ -87,10 +88,11 @@ SlideSafe 是一款原生 macOS 工具，用来降低 PowerPoint 在其他电脑
 - 转换全部支持的文字，或只处理指定字体。
 - 在支持范围内保留位置、旋转、换行、对齐、边距、纯色与渐变、透明度、下划线、描边、粗体和斜体效果。
 - 支持常见艺术字弯曲效果、竖排文字以及链接文字的视觉样式。
-- 采用等效于 PowerPoint“解除组合后重新组合”的坐标归一化，再替换组合中的文字，同时保持位置、组合结构、同组图片、其他图形和层级顺序。
+- 保持组合对象原有的局部坐标，在转换文字的同时保留组合结构、同组图片、其他图形和层级顺序。
+- 将原生表格中的全部文字合成为一个对齐的图片层，同时保留表格底色、边框、合并单元格、行高、列宽与单元格对齐。
 - 自动解析幻灯片、版式、母版、主题色与东亚字体映射。
 - 不支持的对象会保持原状，并在可滚动的结果页面中列出。
-- 所有处理均在本机和 macOS App Sandbox 内完成，不会上传演示文稿。
+- 所有处理均在本机完成，不会上传演示文稿。
 - 支持简体中文、英文以及系统浅色/深色外观。
 
 ## 使用方法
@@ -108,7 +110,7 @@ SlideSafe 是一款原生 macOS 工具，用来降低 PowerPoint 在其他电脑
 - 转换后的文字已经成为图片表示，因此不能继续作为文字编辑。
 - 链接文字会保留视觉样式，但点击动作会被移除。
 - 复杂的逐字、逐词或逐段动画不会转换。
-- 表格、图表、SmartArt、公式以及带有不支持形状级特效的文字会保持原状，并列入复核报告。
+- 图表、SmartArt、公式、旋转表格以及带有不支持形状级特效的文字会保持原状，并列入复核报告。
 - 软件不会擅自替换缺失字体；相关文字会保持可编辑并列入报告。
 - 转换效果取决于执行转换的 Mac 上实际安装的字体。
 

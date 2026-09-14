@@ -39,9 +39,11 @@ struct CompletionView: View {
     @State private var warningsExpanded = true
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 24) {
+        GeometryReader { proxy in
+            let pageWidth = min(1_120, max(1, proxy.size.width - 76))
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 24) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 48, weight: .light))
                         .foregroundStyle(.green)
@@ -115,33 +117,36 @@ struct CompletionView: View {
                             in: RoundedRectangle(cornerRadius: 12)
                         )
                     }
+                    }
+                    .frame(maxWidth: pageWidth)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 38)
+                    .padding(.vertical, 30)
                 }
-                .frame(maxWidth: 680)
+
+                Divider()
+
+                HStack(spacing: 12) {
+                    Button("completion.process_another") {
+                        viewModel.processAnotherFile()
+                    }
+                    Spacer()
+                    Button("completion.show_finder") {
+                        viewModel.revealOutput()
+                    }
+                    Button("completion.open") {
+                        viewModel.openOutput()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: pageWidth)
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 38)
-                .padding(.vertical, 30)
+                .padding(.vertical, 16)
+                .background(.bar)
             }
-
-            Divider()
-
-            HStack(spacing: 12) {
-                Button("completion.process_another") {
-                    viewModel.processAnotherFile()
-                }
-                Spacer()
-                Button("completion.show_finder") {
-                    viewModel.revealOutput()
-                }
-                Button("completion.open") {
-                    viewModel.openOutput()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .frame(maxWidth: 680)
-            .padding(.horizontal, 38)
-            .padding(.vertical, 16)
-            .background(.bar)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var warningGroups: [(reason: OutlineSkipReason, count: Int)] {
